@@ -1,0 +1,29 @@
+{
+  "name": "langgraph",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/zamannshaikh/LangGraph.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/zamannshaikh/LangGraph/issues"
+  },
+  "homepage": "https://github.com/zamannshaikh/LangGraph#readme",
+  "dependencies": {
+    "@langchain/google-genai": "^2.1.6",
+    "@langchain/langgraph": "^1.0.7",
+    "dotenv": "^17.2.3"
+  },
+  "devDependencies": {
+    "@types/node": "^25.0.3"
+  }
+}

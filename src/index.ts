@@ -37,15 +37,28 @@ async function translator(state:typeof MessagesAnnotation.State) {
     
   }
 
+  // 1. The Logic Function (The Traffic Cop)
+function routeMessage(state: typeof MessagesAnnotation.State) {
+  const lastMessage = state.messages[state.messages.length - 1];
+  const text = (lastMessage?.content as string).toLowerCase();
+
+  // Simple logic: Does the message start with "translate"?
+  if (text.startsWith("translate")) {
+    return "translator"; // Go to the translator node
+  } 
+  
+  return "agent"; // Otherwise, go to the general agent
+}
+
 const workflow = new StateGraph(MessagesAnnotation)
   // Add our node
   .addNode("agent", callModel)
   .addNode("translator", translator)
   
   // Add Edges (Connect the dots)
-  .addEdge(START, "agent") // Start -> Agent
-  .addEdge("agent", "translator")  // Agent -> Translator
-  .addEdge("translator", END); // Translator -> End
+  .addConditionalEdges(START, routeMessage)
+  .addEdge("agent", END)
+  .addEdge("translator", END);
 
 // 4. Compile it into a runnable application
 const app = workflow.compile();
@@ -53,7 +66,7 @@ const app = workflow.compile();
 // 5. Run it
 async function main() {
   const result = await app.invoke({
-    messages: [new HumanMessage("Explain quantum physics in one sentence.")]
+    messages: [new HumanMessage("translate and  Explain quantum physics in one sentence.")]
   });
 
   // The result contains the final state (all messages)

@@ -80,55 +80,137 @@
 
 
 // memory implementation 
+// import 'dotenv/config';
+// import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
+// import { 
+//   StateGraph, 
+//   MessagesAnnotation, 
+//   START, 
+//   END,
+//   MemorySaver // <--- NEW IMPORT
+// } from "@langchain/langgraph";
+// import { HumanMessage } from "@langchain/core/messages";
+
+// const model = new ChatGoogleGenerativeAI({
+//   model: "gemini-2.5-flash", 
+//   apiKey: process.env.GOOGLE_API_KEY!,
+// });
+
+// // Standard Agent Node
+// async function callModel(state: typeof MessagesAnnotation.State) {
+//   const response = await model.invoke(state.messages);
+//   return { messages: [response] };
+// }
+
+// // Build the Graph
+// const workflow = new StateGraph(MessagesAnnotation)
+//   .addNode("agent", callModel)
+//   .addEdge(START, "agent")
+//   .addEdge("agent", END);
+
+// // --- MEMORY SETUP ---
+// const checkpointer = new MemorySaver(); // In-memory storage
+
+// const app = workflow.compile({ 
+//   checkpointer // <--- Attach memory here
+// });
+
+// async function main() {
+//   // Define a Thread ID (Like a conversation ID)
+//   const config = { configurable: { thread_id: "conversation-1" } };
+
+//   console.log("--- Turn 1: Introducing myself ---");
+//   const input1 = { messages: [new HumanMessage("Hi! My name is Zaman.")] };
+//   const result1 = await app.invoke(input1, config);
+//   console.log("AI:", result1.messages[result1.messages.length - 1]?.content);
+
+//   console.log("\n--- Turn 2: Testing Memory ---");
+//   // Notice: I am NOT telling it my name again.
+//   const input2 = { messages: [new HumanMessage("What is my name?")] };
+//   const result2 = await app.invoke(input2, config); // <--- Using SAME config
+//   console.log("AI:", result2.messages[result2.messages.length - 1]?.content);
+// }
+
+// main().catch(console.error);
+
+
+
+
+
+
+
+// implemention of interuptions
+
 import 'dotenv/config';
-import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
 import { 
   StateGraph, 
   MessagesAnnotation, 
   START, 
   END,
-  MemorySaver // <--- NEW IMPORT
+  MemorySaver 
 } from "@langchain/langgraph";
 import { HumanMessage } from "@langchain/core/messages";
 
-const model = new ChatGoogleGenerativeAI({
-  model: "gemini-2.5-flash", 
-  apiKey: process.env.GOOGLE_API_KEY!,
-});
+// Node 1: The Agent (Proposes the action)
+async function agentNode(state: typeof MessagesAnnotation.State) {
+  console.log("--- Step 1: Agent is planning ---");
+  return { 
+    messages: [new HumanMessage("I am ready to launch the missiles. Awaiting approval.")] 
+  };
+}
 
-// Standard Agent Node
-async function callModel(state: typeof MessagesAnnotation.State) {
-  const response = await model.invoke(state.messages);
-  return { messages: [response] };
+// Node 2: The Sensitive Action (The dangerous part)
+async function launchNode(state: typeof MessagesAnnotation.State) {
+  console.log("--- Step 2: EXECUTION ---");
+  return { 
+    messages: [new HumanMessage("🚀 MISSILES LAUNCHED!")] 
+  };
 }
 
 // Build the Graph
 const workflow = new StateGraph(MessagesAnnotation)
-  .addNode("agent", callModel)
+  .addNode("agent", agentNode)
+  .addNode("launch_site", launchNode)
+  
   .addEdge(START, "agent")
-  .addEdge("agent", END);
+  .addEdge("agent", "launch_site")
+  .addEdge("launch_site", END);
 
-// --- MEMORY SETUP ---
-const checkpointer = new MemorySaver(); // In-memory storage
+// --- THE MAGIC PART ---
+const checkpointer = new MemorySaver();
 
 const app = workflow.compile({ 
-  checkpointer // <--- Attach memory here
+  checkpointer,
+  // This tells LangGraph: "STOP right before entering 'launch_site'"
+  interruptBefore: ["launch_site"], 
 });
 
 async function main() {
-  // Define a Thread ID (Like a conversation ID)
-  const config = { configurable: { thread_id: "conversation-1" } };
+  const config = { configurable: { thread_id: "mission-impossible-1" } };
 
-  console.log("--- Turn 1: Introducing myself ---");
-  const input1 = { messages: [new HumanMessage("Hi! My name is Zaman.")] };
-  const result1 = await app.invoke(input1, config);
-  console.log("AI:", result1.messages[result1.messages.length - 1]?.content);
+  // --- PHASE 1: The Initial Run ---
+  console.log("\n[PHASE 1] Starting the graph...");
+  await app.invoke({
+    messages: [new HumanMessage("Start the mission")]
+  }, config);
 
-  console.log("\n--- Turn 2: Testing Memory ---");
-  // Notice: I am NOT telling it my name again.
-  const input2 = { messages: [new HumanMessage("What is my name?")] };
-  const result2 = await app.invoke(input2, config); // <--- Using SAME config
-  console.log("AI:", result2.messages[result2.messages.length - 1]?.content);
+  // At this point, the code inside 'launchNode' has NOT run yet.
+  // The graph is "sleeping" in the database.
+  
+  console.log("\n[PAUSED] Graph has stopped. Waiting for human approval...");
+  
+  // In a real app, you would exit here and wait for a user button click.
+  // We will simulate 'waiting' with a quick check.
+  const state = await app.getState(config);
+  console.log("Current Next Step:", state.next); // Should say 'launch_site'
+
+  // --- PHASE 2: Human Approval (Resuming) ---
+  console.log("\n[PHASE 2] Human says 'GO'. Resuming graph...");
+  
+  // To resume, we call invoke again with 'null' (meaning: "No new input, just continue")
+  const result = await app.invoke(null, config);
+
+  console.log("Final Message:", result.messages[result.messages.length - 1]?.content);
 }
 
 main().catch(console.error);

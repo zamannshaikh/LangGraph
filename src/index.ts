@@ -9,31 +9,43 @@ import {
 } from "@langchain/langgraph";
 import { HumanMessage } from "@langchain/core/messages";
 
-// 1. Initialize the Google Gemini Model
+
 const model = new ChatGoogleGenerativeAI({
   model: "gemini-2.5-flash", // or "gemini-1.5-turbo"
   apiKey: process.env.GOOGLE_API_KEY!, // Ensure this is set in your .env
 });
 
-// 2. Define the Node (The Worker)
-// This function takes the current state, calls the model, and returns the new message.
+
 async function callModel(state: typeof MessagesAnnotation.State) {
   const response = await model.invoke(state.messages);
   
-  // We return an object that matches the structure of our State.
-  // LangGraph merges this into the existing state (appending the message).
   return { messages: [response] };
-}
 
-// 3. Build the Graph
-// MessagesAnnotation is a pre-built state helper that handles a list of messages for us.
+
+
+}
+async function translator(state:typeof MessagesAnnotation.State) {
+  const lastMessage= state.messages[state.messages.length - 1];
+  const text = lastMessage?.content;
+
+  const prompt = `Translate the following text to French: ${text}`;
+  const response = await model.invoke([new HumanMessage(prompt)]);
+
+
+     return { messages: [response] };
+
+    
+  }
+
 const workflow = new StateGraph(MessagesAnnotation)
   // Add our node
   .addNode("agent", callModel)
+  .addNode("translator", translator)
   
   // Add Edges (Connect the dots)
   .addEdge(START, "agent") // Start -> Agent
-  .addEdge("agent", END);  // Agent -> End
+  .addEdge("agent", "translator")  // Agent -> Translator
+  .addEdge("translator", END); // Translator -> End
 
 // 4. Compile it into a runnable application
 const app = workflow.compile();
